@@ -18,7 +18,7 @@ scaler_brca = joblib.load('modelbrca/scaler.joblib')
 columns_brca = joblib.load('modelbrca/columns_to_use.joblib')
 
 # ตั้งค่า MongoDB
-client = MongoClient("mongodb://localhost:27017")
+client = MongoClient("mongodb+srv://busduan:busduan123@cluster0.ui6tr.mongodb.net/")
 personal_db = client["PersonalInfoDB"]
 brca_db = client["BrcaDB"]
 diag_db = client["DiagDB"]
