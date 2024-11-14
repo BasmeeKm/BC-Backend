@@ -4,9 +4,11 @@ import joblib
 import pandas as pd
 from pymongo import MongoClient
 from datetime import datetime
+import pytz
 import uuid
 from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
+import traceback
 
 # โหลดโมเดล
 model_diag = joblib.load('modeldiag/rf_model.joblib')
@@ -18,18 +20,14 @@ scaler_brca = joblib.load('modelbrca/scaler.joblib')
 columns_brca = joblib.load('modelbrca/columns_to_use.joblib')
 
 # ตั้งค่า MongoDB
-client = MongoClient("mongodb+srv://busduan:busduan123@cluster0.ui6tr.mongodb.net/")
+client = MongoClient("mongodb://localhost:27017/")
 personal_db = client["PersonalInfoDB"]
 brca_db = client["BrcaDB"]
 diag_db = client["DiagDB"]
 formodel_db = client["formodelDB"]
 screening_db = client["ScreeningDB"] 
 
-app = FastAPI(
-    title="Breast Cancer Risk Assessment API",
-    description="API สำหรับประเมินความเสี่ยงมะเร็งเต้านมโดยใช้โมเดล Machine Learning",
-    version="1.0.0"
-)
+app = FastAPI()
 
 # อนุญาต origin ที่ต้องการ
 origins = ["http://localhost:3000"]
@@ -124,6 +122,8 @@ def predict(data: InputData):
         
         user_id = str(uuid.uuid4())
         bmi_value = weight / (height / 100) ** 2
+        bangkok_tz = pytz.timezone('Asia/Bangkok')
+        timestamp = datetime.now(bangkok_tz)
 
         # เก็บข้อมูลส่วนตัว
         personal_info = {
@@ -134,7 +134,7 @@ def predict(data: InputData):
             "age": data.AGE_GROUP,
             "province": data.PROVINCE_GROUP[0],
             "consent": data.consent,
-            "timestamp": datetime.now()
+            "timestamp": timestamp
         }
         personal_db.personal_info.insert_one(personal_info)
 
@@ -149,7 +149,7 @@ def predict(data: InputData):
                 "user_id": user_id,
                 "brca_value": 'Positive' if brca_result == '2:P' else 'Negative',
                 "source": "manual",
-                "timestamp": datetime.now()
+                "timestamp": timestamp
             }
             brca_db.brca_info.insert_one(brca_data)
 
@@ -159,7 +159,7 @@ def predict(data: InputData):
                 "age_group": age_group_value,
                 "province_group": province_group_value,
                 "brca_value": brca_result,
-                "timestamp": datetime.now()
+                "timestamp": timestamp
             }
             formodel_db.formodel_info.insert_one(formodel_data)
 
@@ -180,7 +180,7 @@ def predict(data: InputData):
                 "user_id": user_id,
                 "diag_prediction": diag_risk_level,
                 "diag_probability": round(prob * 100, 2),
-                "timestamp": datetime.now()
+                "timestamp": timestamp
             }
             diag_db.diag_results.insert_one(diag_data)
 
@@ -216,7 +216,7 @@ def predict(data: InputData):
                 "brca_value": brca_level_result,
                 "source": "prediction",
                 "probability": round(brca_prob * 100, 2),
-                "timestamp": datetime.now()
+                "timestamp": timestamp
             }
             brca_db.brca_info.insert_one(brca_data)
 
@@ -227,7 +227,7 @@ def predict(data: InputData):
                 "age_group": age_group_value,
                 "province_group": province_group_value,
                 "brca_value": brca_value,
-                "timestamp": datetime.now()
+                "timestamp": timestamp
             }
             formodel_db.formodel_info.insert_one(formodel_data)
 
@@ -248,7 +248,7 @@ def predict(data: InputData):
                 "user_id": user_id,
                 "diag_prediction": diag_risk_level,
                 "diag_probability": round(prob * 100, 2),
-                "timestamp": datetime.now()
+                "timestamp": timestamp
             }
             diag_db.diag_results.insert_one(diag_data)
 
@@ -260,6 +260,7 @@ def predict(data: InputData):
             }
 
     except Exception as e:
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/screening/")
@@ -268,6 +269,9 @@ def screening(data: ScreeningData):
         # คำนวณค่า BMI หากจำเป็น
         if data.weight and data.height:
             data.BMI = data.weight / (data.height / 100) ** 2
+        
+        bangkok_tz = pytz.timezone('Asia/Bangkok')
+        timestamp = datetime.now(bangkok_tz)
         
         # สร้างข้อมูลที่ต้องการบันทึก
         screening_data = {
@@ -284,7 +288,7 @@ def screening(data: ScreeningData):
             "result": data.result,
             "probability": data.probability,
             "consent": data.consent,
-            "timestamp": datetime.now()
+            "timestamp": timestamp
         }
         
         # บันทึกข้อมูลลงใน ScreeningDB
